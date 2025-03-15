@@ -6,13 +6,26 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <ImageView
-        android:id="@+id/image_view"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="200dp"
-        android:scaleType="centerCrop"
-        android:background="#DDDDDD"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="16dp">
+
+        <ImageView
+            android:id="@+id/image_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:background="#DDDDDD" />
+
+        <Button
+            android:id="@+id/retake_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Retake"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="8dp" />
+    </FrameLayout>
 
     <EditText
         android:id="@+id/edit_title"
