@@ -1,12 +1,15 @@
+// app/src/main/java/com/example/myapp/MainActivity.java
 package com.example.myapp;
 
 import android.Manifest;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -33,22 +36,21 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.common.util.concurrent.ListenableFuture;
 
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 
 public class MainActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
     private FoodItemAdapter adapter;
     private List<FoodItem> foodItems;
+    private DatabaseHelper dbHelper;
     private ImageCapture imageCapture;
     private Bitmap capturedImage;
     private String currentCameraMode;
+    private String currentImagePath;
+    private FoodItem currentEditItem;
+    private boolean isEditMode = false;
 
     private ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -65,16 +67,15 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Initialize database helper
+        dbHelper = new DatabaseHelper(this);
+        
         // Initialize RecyclerView
         recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new GridLayoutManager(this, 2));
         
-        // Initialize food items list
-        foodItems = new ArrayList<>();
-        
-        // Add sample items for demonstration
-        foodItems.add(new FoodItem("Milk", "2025-03-20", null));
-        foodItems.add(new FoodItem("Bread", "2025-03-18", null));
+        // Load food items from database
+        foodItems = dbHelper.getAllFoodItems();
         
         // Initialize adapter
         adapter = new FoodItemAdapter(foodItems);
@@ -93,6 +94,7 @@ public class MainActivity extends AppCompatActivity {
             dialog.dismiss();
             // Set current camera mode before checking permission
             currentCameraMode = "barcode";
+            isEditMode = false;
             if (checkCameraPermission()) {
                 openCamera(currentCameraMode);
             }
@@ -107,6 +109,7 @@ public class MainActivity extends AppCompatActivity {
             dialog.dismiss();
             // Set current camera mode before checking permission
             currentCameraMode = "custom";
+            isEditMode = false;
             if (checkCameraPermission()) {
                 openCamera(currentCameraMode);
             }
@@ -175,8 +178,12 @@ public class MainActivity extends AppCompatActivity {
                 new ImageCapture.OnImageCapturedCallback() {
                     @Override
                     public void onCaptureSuccess(@NonNull ImageProxy image) {
-                        // Convert ImageProxy to Bitmap (simplified)
-                        capturedImage = null; // In a real app, convert ImageProxy to Bitmap
+                        // Convert ImageProxy to Bitmap
+                        capturedImage = ImageUtils.imageProxyToBitmap(image);
+                        
+                        // Save bitmap to file
+                        currentImagePath = ImageUtils.saveBitmapToFile(MainActivity.this, capturedImage);
+                        
                         image.close();
                         dialog.dismiss();
                         
@@ -184,6 +191,7 @@ public class MainActivity extends AppCompatActivity {
                             // In a real app, process barcode here
                             showAddItemDialog("Scanned Item", capturedImage);
                         } else {
+                            // For custom mode, leave title blank
                             showAddItemDialog("", capturedImage);
                         }
                     }
@@ -203,26 +211,119 @@ public class MainActivity extends AppCompatActivity {
         EditText titleEdit = view.findViewById(R.id.edit_title);
         DatePicker datePicker = view.findViewById(R.id.date_picker);
         ImageView imageView = view.findViewById(R.id.image_view);
+        Button retakeButton = view.findViewById(R.id.retake_button);
         
-        titleEdit.setText(title);
+        // Set minimum date to today
+        Calendar today = Calendar.getInstance();
+        datePicker.setMinDate(today.getTimeInMillis());
+
+        // Show image if available
         if (image != null) {
             imageView.setImageBitmap(image);
         }
         
-        builder.setView(view)
-               .setPositiveButton("Add", (dialog, which) -> {
-                   String itemTitle = titleEdit.getText().toString();
-                   Calendar calendar = Calendar.getInstance();
-                   calendar.set(datePicker.getYear(), datePicker.getMonth(), datePicker.getDayOfMonth());
-                   SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-                   String expiryDate = dateFormat.format(calendar.getTime());
-                   
-                   foodItems.add(new FoodItem(itemTitle, expiryDate, image));
-                   adapter.notifyItemInserted(foodItems.size() - 1);
-               })
-               .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        // If edit mode, fill in existing data
+        if (isEditMode && currentEditItem != null) {
+            titleEdit.setText(currentEditItem.getTitle());
+            
+            // Parse expiry date
+            String[] dateParts = currentEditItem.getExpiryDate().split("-");
+            if (dateParts.length == 3) {
+                int year = Integer.parseInt(dateParts[0]);
+                int month = Integer.parseInt(dateParts[1]) - 1; // DatePicker months are 0-based
+                int day = Integer.parseInt(dateParts[2]);
+                datePicker.updateDate(year, month, day);
+            }
+            
+            // Load image if available
+            if (currentEditItem.getImage() != null) {
+                imageView.setImageBitmap(currentEditItem.getImage());
+            }
+        } else {
+            titleEdit.setText(title);
+        }
         
-        builder.create().show();
+        // Retake button listener
+        retakeButton.setOnClickListener(v -> {
+            isEditMode = false; // Ensure we're not in edit mode for capture
+            if (checkCameraPermission()) {
+                openCamera(currentCameraMode);
+            }
+        });
+        
+        AlertDialog dialog = builder.setView(view)
+               .setPositiveButton("Save", null) // Set later to prevent auto-dismiss
+               .setNegativeButton("Cancel", (dialogInterface, which) -> {
+                   if (!isEditMode && currentImagePath != null) {
+                       // Delete the captured image if canceling a new item
+                       ImageUtils.deleteImage(currentImagePath);
+                       currentImagePath = null;
+                   }
+                   dialogInterface.dismiss();
+               })
+               .create();
+        
+        dialog.setOnShowListener(dialogInterface -> {
+            Button button = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            button.setOnClickListener(v -> {
+                String itemTitle = titleEdit.getText().toString().trim();
+                
+                // Validate title
+                if (itemTitle.isEmpty()) {
+                    titleEdit.setError("Title is required");
+                    return;
+                }
+                
+                Calendar calendar = Calendar.getInstance();
+                calendar.set(datePicker.getYear(), datePicker.getMonth(), datePicker.getDayOfMonth());
+                java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault());
+                String expiryDate = dateFormat.format(calendar.getTime());
+                
+                if (isEditMode && currentEditItem != null) {
+                    // Update existing item
+                    if (currentImagePath != null && !currentImagePath.equals(currentEditItem.getImagePath())) {
+                        // Delete old image if a new one was captured
+                        ImageUtils.deleteImage(currentEditItem.getImagePath());
+                        currentEditItem.setImagePath(currentImagePath);
+                    }
+                    
+                    currentEditItem.setTitle(itemTitle);
+                    currentEditItem.setExpiryDate(expiryDate);
+                    
+                    // Update in database
+                    dbHelper.updateFoodItem(currentEditItem);
+                    
+                    // Reset flags
+                    isEditMode = false;
+                    currentEditItem = null;
+                } else {
+                    // Create new item
+                    FoodItem newItem = new FoodItem(itemTitle, expiryDate, currentImagePath);
+                    long id = dbHelper.insertFoodItem(itemTitle, expiryDate, currentImagePath);
+                    newItem.setId((int) id);
+                    
+                    // Add to list
+                    foodItems.add(newItem);
+                }
+                
+                // Refresh adapter
+                adapter.notifyDataSetChanged();
+                
+                // Reset image path
+                currentImagePath = null;
+                
+                dialog.dismiss();
+            });
+            
+            // Request focus on title field and show keyboard
+            titleEdit.requestFocus();
+            titleEdit.postDelayed(() -> {
+                android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                imm.showSoftInput(titleEdit, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+            }, 300);
+        });
+        
+        dialog.show();
     }
     
     private void showSearchDialog() {
@@ -239,17 +340,47 @@ public class MainActivity extends AppCompatActivity {
         builder.create().show();
     }
     
-    // Food Item class
-    private static class FoodItem {
-        String title;
-        String expiryDate;
-        Bitmap image;
+    // Show item options dialog for long-press
+    private void showItemOptionsDialog(FoodItem item, int position) {
+        String[] options = {"Edit", "Delete"};
         
-        FoodItem(String title, String expiryDate, Bitmap image) {
-            this.title = title;
-            this.expiryDate = expiryDate;
-            this.image = image;
-        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(item.getTitle())
+               .setItems(options, (dialog, which) -> {
+                   if (which == 0) {
+                       // Edit option
+                       currentEditItem = item;
+                       isEditMode = true;
+                       currentImagePath = item.getImagePath();
+                       showAddItemDialog(item.getTitle(), item.getImage());
+                   } else if (which == 1) {
+                       // Delete option
+                       confirmDelete(item, position);
+                   }
+               })
+               .show();
+    }
+    
+    // Confirm delete dialog
+    private void confirmDelete(FoodItem item, int position) {
+        new AlertDialog.Builder(this)
+            .setTitle("Delete " + item.getTitle())
+            .setMessage("Are you sure you want to delete this item?")
+            .setPositiveButton("Delete", (dialog, which) -> {
+                // Delete from database
+                dbHelper.deleteFoodItem(item.getId());
+                
+                // Delete image file
+                ImageUtils.deleteImage(item.getImagePath());
+                
+                // Remove from list
+                foodItems.remove(position);
+                
+                // Notify adapter
+                adapter.notifyItemRemoved(position);
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
     
     // RecyclerView Adapter
@@ -264,38 +395,4 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_food, parent, false);
-            return new ViewHolder(view);
-        }
-        
-        @Override
-        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            FoodItem item = items.get(position);
-            holder.titleText.setText(item.title);
-            holder.dateText.setText(item.expiryDate);
-            if (item.image != null) {
-                holder.imageView.setImageBitmap(item.image);
-            } else {
-                holder.imageView.setImageResource(R.drawable.ic_food_placeholder);
-            }
-        }
-        
-        @Override
-        public int getItemCount() {
-            return items.size();
-        }
-        
-        class ViewHolder extends RecyclerView.ViewHolder {
-            ImageView imageView;
-            TextView titleText;
-            TextView dateText;
-            
-            ViewHolder(View itemView) {
-                super(itemView);
-                imageView = itemView.findViewById(R.id.item_image);
-                titleText = itemView.findViewById(R.id.item_title);
-                dateText = itemView.findViewById(R.id.item_date);
-            }
-        }
-    }
-}
+                    .inflate(R.layout
