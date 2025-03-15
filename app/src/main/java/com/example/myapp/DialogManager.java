@@ -187,3 +187,57 @@ public class DialogManager {
             titleEdit.postDelayed(() -> {
                 android.view.inputmethod.InputMethodManager imm = 
                     (android.view.inputmethod.InputMethodManager)
+                    activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.showSoftInput(titleEdit, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+            }, 200);
+        });
+        
+        dialog.show();
+    }
+
+    public static void showSearchDialog(Activity activity) {
+        // This would show a search dialog for finding food items
+        // Implementation would depend on external API or database
+        Toast.makeText(activity, "Search feature not implemented yet", Toast.LENGTH_SHORT).show();
+    }
+
+    public static void showItemOptionsDialog(Context context, FoodItem item, int position,
+                                           List<FoodItem> items, RecyclerView.Adapter adapter,
+                                           DatabaseHelper dbHelper) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        View view = ((Activity) context).getLayoutInflater().inflate(R.layout.dialog_item_options, null);
+        
+        view.findViewById(R.id.option_edit).setOnClickListener(v -> {
+            // Set edit mode flags
+            CameraManager.setIsEditMode(true);
+            CameraManager.setCurrentEditItem(item);
+            CameraManager.setCurrentImagePath(item.getImagePath());
+            
+            // Show edit dialog with current data
+            showAddItemDialog((Activity) context, item.getTitle(), item.getImage(), 
+                             true, item, item.getImagePath(), null);
+            
+            ((AlertDialog) view.getTag()).dismiss();
+        });
+        
+        view.findViewById(R.id.option_delete).setOnClickListener(v -> {
+            // Delete the item
+            dbHelper.deleteFoodItem(item.getId());
+            
+            // Delete associated image file
+            if (item.getImagePath() != null) {
+                ImageUtils.deleteImage(item.getImagePath());
+            }
+            
+            // Remove from list and update adapter
+            items.remove(position);
+            adapter.notifyItemRemoved(position);
+            
+            ((AlertDialog) view.getTag()).dismiss();
+        });
+        
+        AlertDialog dialog = builder.setView(view).create();
+        view.setTag(dialog); // Store dialog reference in view tag for click handlers
+        dialog.show();
+    }
+}
