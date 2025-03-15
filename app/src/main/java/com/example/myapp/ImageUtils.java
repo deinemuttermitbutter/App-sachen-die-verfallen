@@ -70,4 +70,13 @@ public class ImageUtils {
         matrix.postRotate(angle);
         return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
     }
+
+    public static Bitmap loadImageFromFile(String path) {
+    if (path == null) return null;
+    
+    File file = new File(path);
+    if (!file.exists()) return null;
+    
+    return BitmapFactory.decodeFile(path);
+    }
 }
