@@ -2,6 +2,7 @@
 package com.example.myapp;
 
 import android.Manifest;
+import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -207,7 +208,7 @@ public class MainActivity extends AppCompatActivity {
                 // For now, just simulate capturing and proceed to add item dialog
                 showAddItemDialog(null);
                 // Close the camera dialog
-                Dialog dialog = (Dialog) v.getTag();
+                AlertDialog dialog = (AlertDialog) v.getTag();
                 if (dialog != null) {
                     dialog.dismiss();
                 }
@@ -265,7 +266,7 @@ public class MainActivity extends AppCompatActivity {
         retakeButton.setOnClickListener(v -> {
             // Go back to camera dialog
             requestCameraPermission();
-            Dialog dialog = (Dialog) v.getTag();
+            AlertDialog dialog = (AlertDialog) v.getTag();
             if (dialog != null) {
                 dialog.dismiss();
             }
@@ -341,7 +342,7 @@ public class MainActivity extends AppCompatActivity {
             });
         }
         
-        Dialog dialog = builder.create();
+        AlertDialog dialog = builder.create();
         retakeButton.setTag(dialog);
         dialog.show();
     }
