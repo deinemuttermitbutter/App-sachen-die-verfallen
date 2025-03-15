@@ -106,4 +106,22 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.delete(TABLE_FOOD_ITEMS, COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
         db.close();
     }
+
+    public List<FoodItem> searchFoodItems(String query) {
+    List<FoodItem> foodItems = new ArrayList<>();
+    SQLiteDatabase db = this.getReadableDatabase();
+    Cursor cursor = db.rawQuery("SELECT * FROM food_items WHERE title LIKE ?", new String[]{"%" + query + "%"});
+
+    if (cursor.moveToFirst()) {
+        do {
+            int id = cursor.getInt(cursor.getColumnIndexOrThrow("id"));
+            String title = cursor.getString(cursor.getColumnIndexOrThrow("title"));
+            String expiryDate = cursor.getString(cursor.getColumnIndexOrThrow("expiry_date"));
+            String imagePath = cursor.getString(cursor.getColumnIndexOrThrow("image_path"));
+            foodItems.add(new FoodItem(id, title, expiryDate, imagePath));
+        } while (cursor.moveToNext());
+    }
+    cursor.close();
+    return foodItems;
+    }
 }
