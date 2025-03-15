@@ -48,13 +48,15 @@ public class MainActivity extends AppCompatActivity {
     private List<FoodItem> foodItems;
     private ImageCapture imageCapture;
     private Bitmap capturedImage;
+    private String currentCameraMode;
 
     private ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
                 if (isGranted) {
                     // Permission granted, proceed with camera
+                    openCamera(currentCameraMode);
                 } else {
-                    Toast.makeText(this, "Camera permission is required", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Camera permission is required to use this feature", Toast.LENGTH_SHORT).show();
                 }
             });
 
@@ -89,9 +91,10 @@ public class MainActivity extends AppCompatActivity {
         
         view.findViewById(R.id.option_camera).setOnClickListener(v -> {
             dialog.dismiss();
-            // Handle barcode scanning (just open camera for now)
+            // Set current camera mode before checking permission
+            currentCameraMode = "barcode";
             if (checkCameraPermission()) {
-                openCamera("barcode");
+                openCamera(currentCameraMode);
             }
         });
         
@@ -102,8 +105,10 @@ public class MainActivity extends AppCompatActivity {
         
         view.findViewById(R.id.option_custom).setOnClickListener(v -> {
             dialog.dismiss();
+            // Set current camera mode before checking permission
+            currentCameraMode = "custom";
             if (checkCameraPermission()) {
-                openCamera("custom");
+                openCamera(currentCameraMode);
             }
         });
         
@@ -114,6 +119,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean checkCameraPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
                 != PackageManager.PERMISSION_GRANTED) {
+            // Always request permission when not granted
             requestPermissionLauncher.launch(Manifest.permission.CAMERA);
             return false;
         }
