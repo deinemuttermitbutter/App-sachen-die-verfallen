@@ -22,7 +22,10 @@ public class ImageUtils {
         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
         byte[] bytes = new byte[buffer.remaining()];
         buffer.get(bytes);
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        
+        // Fix rotation issue by always rotating 90 degrees clockwise
+        return rotateImage(bitmap, 90);
     }
     
     public static String saveBitmapToFile(Context context, Bitmap bitmap) {
