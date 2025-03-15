@@ -395,4 +395,44 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout
+                    .layout.item_food, parent, false);
+            return new ViewHolder(view);
+        }
+        
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            FoodItem item = items.get(position);
+            holder.titleTextView.setText(item.getTitle());
+            holder.dateTextView.setText("Expires: " + item.getExpiryDate());
+            
+            if (item.getImage() != null) {
+                holder.imageView.setImageBitmap(item.getImage());
+            } else {
+                holder.imageView.setImageResource(R.drawable.ic_food_placeholder);
+            }
+            
+            holder.itemView.setOnLongClickListener(v -> {
+                showItemOptionsDialog(item, holder.getAdapterPosition());
+                return true;
+            });
+        }
+        
+        @Override
+        public int getItemCount() {
+            return items.size();
+        }
+        
+        class ViewHolder extends RecyclerView.ViewHolder {
+            ImageView imageView;
+            TextView titleTextView;
+            TextView dateTextView;
+            
+            ViewHolder(View itemView) {
+                super(itemView);
+                imageView = itemView.findViewById(R.id.item_image);
+                titleTextView = itemView.findViewById(R.id.item_title);
+                dateTextView = itemView.findViewById(R.id.item_date);
+            }
+        }
+    }
+}
